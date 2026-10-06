@@ -14,34 +14,117 @@ Designed for air-gapped field operations, sub-second hardware telemetry triage, 
 
 ---
 
-## 🏛️ Core Architecture
+## 🏛️ Comprehensive Architecture & Engineering Pipelines
+
+### 1. Edge-to-Device Workflow Pipeline
 
 ```mermaid
 flowchart TD
-    subgraph Mobile ["1. Standalone Android APK (React Native / Expo)"]
-        UI["Dark Cyber Glassmorphic UI"] --> VOICE["Web Audio DSP / Voice Engine"]
-        UI --> RADAR["Hardware Telemetry Radar"]
-        UI --> SELECTOR["Model Selector (Qwen / Llama / Cloud)"]
+    classDef mobile fill:#0f172a,stroke:#38bdf8,stroke-width:2px,color:#f8fafc;
+    classDef runtime fill:#0f172a,stroke:#818cf8,stroke-width:2px,color:#f8fafc;
+    classDef llm fill:#0f172a,stroke:#34d399,stroke-width:2px,color:#f8fafc;
+    classDef telemetry fill:#0f172a,stroke:#f43f5e,stroke-width:2px,color:#f8fafc;
+
+    subgraph Mobile ["📱 1. Standalone Android APK (React Native / Expo SDK 51)"]
+        UI["Dark Cyber Glassmorphic HUD"] --> VOICE["Web Audio DSP / Frequency Visualizer"]
+        UI --> RADAR["Hardware Sensor Matrix"]
+        UI --> SELECTOR["Model Selector (Qwen 2.5 / Llama 3.2 / Cloud)"]
+        VOICE --> WS_CLI["WebSocket Bi-Directional Client"]
     end
 
-    subgraph EdgeRuntime ["2. ELYRA Python AsyncIO Edge Daemon"]
-        WS["WebSocket / SSE Streamer"] --> ROUTER["InferenceRouter"]
-        ROUTER -->|On-Device ARM64| OLLAMA["Ollama / GGUF Local Daemon"]
-        ROUTER -->|High-Reasoning| CLOUD["Cloud API Fallback"]
+    subgraph EdgeRuntime ["⚡ 2. ELYRA Python AsyncIO Edge Daemon"]
+        WS_SRV["WebSocket / SSE Ingestion Hub"] --> MEMORY["SlidingWindowMemory (2,048 Tokens)"]
+        MEMORY --> ROUTER{"InferenceRouter"}
         
-        MEMORY["SlidingWindowMemory (2,048 Tokens)"] --> ROUTER
+        ROUTER -->|Air-Gapped / Offline| OLLAMA["Local GGUF Runtime (Q4_K_M)"]
+        ROUTER -->|Complex Multi-Step| CLOUD["Cloud Reasoner API Fallback"]
+        
         ROUTER --> TOOLS["Autonomous ToolRegistry"]
     end
 
-    subgraph Diagnostics ["3. Hardware & Sensor Telemetry"]
-        TOOLS --> CPU["CPU & Memory Pressure Triage"]
-        TOOLS --> BATT["Battery & Thermal Sensors"]
-        TOOLS --> NET["Network Link Quality & Latency Triage"]
-        TELEMETRY["TelemetryEngine ($z$-score Anomaly Detector)"] --> WS
+    subgraph Diagnostics ["📊 3. Hardware & Sensor Telemetry Pipeline"]
+        TOOLS --> CPU["CPU & RAM Pressure Triage"]
+        TOOLS --> BATT["Battery & Thermal Matrix"]
+        TOOLS --> NET["Network Link RTT & Jitter Triage"]
+        
+        CPU --> TELEM_ENG["TelemetryEngine (Rolling Z-Score Anomaly Detector)"]
+        BATT --> TELEM_ENG
+        NET --> TELEM_ENG
+        
+        TELEM_ENG -->|Anomaly Alert ($z > 2.5$)| WS_SRV
     end
 
-    Mobile <-->|Sub-Second Stream| EdgeRuntime
-    EdgeRuntime <--> Diagnostics
+    WS_CLI <===>|Sub-50ms Low-Latency Bridge| WS_SRV
+
+    class UI,VOICE,RADAR,SELECTOR,WS_CLI mobile;
+    class WS_SRV,MEMORY,ROUTER,TOOLS runtime;
+    class OLLAMA,CLOUD llm;
+    class CPU,BATT,NET,TELEM_ENG telemetry;
+```
+
+---
+
+### 2. End-to-End Real-Time Execution Sequence
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as 👤 Field Operator
+    participant APK as 📱 ELYRA Mobile APK
+    participant Srv as ⚡ WebSocket Server
+    participant Mem as 🪟 Sliding Window Memory
+    participant Rtr as 🔀 Inference Router
+    participant GGUF as 🧠 Quantized LLM (ARM64)
+    participant Tool as 🛠️ Tool Registry / Sensors
+
+    User->>APK: Voice / Prompt Input: "Check device telemetry & thermal state"
+    APK->>Srv: WS Frame: `{"prompt": "...", "model": "qwen2.5:3b"}`
+    Srv->>Mem: Append message & calculate token count
+    alt Window > 2048 Tokens
+        Mem->>Mem: Evict oldest conversational turns (FIFO)
+    end
+    Mem->>Rtr: Stream pruned conversation window
+    Rtr->>GGUF: Invoke Local GGUF Engine
+    GGUF-->>Rtr: Output Tool Call: `{"tool": "get_device_telemetry"}`
+    Rtr->>Tool: Execute `get_device_telemetry()`
+    Tool->>Tool: Sample CPU, Memory, Battery Thermal ($z$-score check)
+    Tool-->>Rtr: Telemetry JSON Payload + Anomaly Flags
+    Rtr->>GGUF: Feed tool output back to model
+    GGUF-->>Srv: Stream Final Synthesis & Mitigation Advice
+    Srv-->>APK: Stream Tokens + Audio Waveform Data
+    APK-->>User: Render HUD Alert + Voice Synthesis
+```
+
+---
+
+### 3. Sliding-Window Memory Management Lifecycle
+
+```mermaid
+stateDiagram-v2
+    [*] --> Ingestion: New Prompt Ingested
+    Ingestion --> TokenCount: Calculate Tiktoken / Character Length
+    
+    state TokenCount {
+        [*] --> MeasurePrompt
+        MeasurePrompt --> MeasureHistory
+        MeasureHistory --> SumTotal
+    }
+    
+    SumTotal --> ThresholdCheck
+    
+    state ThresholdCheck <<choice>>
+    ThresholdCheck --> NormalAppend: Total < Max Budget (2,048)
+    ThresholdCheck --> EvictionLoop: Total >= Max Budget
+    
+    state EvictionLoop {
+        [*] --> FindOldestNonSystem
+        FindOldestNonSystem --> PopTurn
+        PopTurn --> Recalculate
+    }
+    
+    EvictionLoop --> NormalAppend: Within Budget
+    NormalAppend --> ReadyForInference
+    ReadyForInference --> [*]
 ```
 
 ---
