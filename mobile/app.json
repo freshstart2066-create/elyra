@@ -1,0 +1,37 @@
+{
+  "expo": {
+    "name": "ELYRA Edge AI",
+    "slug": "elyra-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "backgroundColor": "#050811"
+    },
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "io.elyra.mobile",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "backgroundColor": "#050811"
+      },
+      "permissions": [
+        "INTERNET",
+        "ACCESS_NETWORK_STATE",
+        "RECORD_AUDIO",
+        "BATTERY_STATS"
+      ]
+    },
+    "plugins": [
+      [
+        "expo-av",
+        {
+          "microphonePermission": "Allow ELYRA to access microphone for local on-device voice queries."
+        }
+      ]
+    ]
+  }
+}
